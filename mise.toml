@@ -1,0 +1,112 @@
+[tools]
+node = "26.2.0"
+gitleaks = "8.30.1"
+
+[tasks.login]
+description = "Authenticate Codex with a headless device code"
+run = "codex login --device-auth"
+
+[tasks."login:status"]
+description = "Check the existing Codex login"
+run = "codex login status"
+
+[tasks.setup]
+description = "Install Node application dependencies from package-lock.json"
+run = "npm ci"
+
+[tasks.dev]
+description = "Run the dashboard and five-minute collector locally"
+run = "npm run dev"
+
+[tasks.build]
+description = "Build the React Router dashboard"
+run = "npm run build"
+
+[tasks.start]
+description = "Serve the production build and collect every five minutes"
+run = "npm start"
+
+[tasks.test]
+description = "Run account-free Node tests"
+run = "npm test"
+
+[tasks.typecheck]
+description = "Check TypeScript and React Router types"
+run = "npm run typecheck"
+
+[tasks.collect]
+description = "Collect one read-only snapshot with Node"
+run = "node --import tsx server/cli.ts collect"
+
+[tasks.status]
+description = "Show the latest stored observation"
+run = "node --import tsx server/cli.ts status"
+
+[tasks.history]
+description = "Show reset-based weekly history (accepts --weeks)"
+run = "node --import tsx server/cli.ts history"
+
+[tasks.dump]
+description = "Export observations (accepts --format json/jsonl)"
+run = "node --import tsx server/cli.ts dump"
+
+[tasks.install]
+description = "Install local dependencies and build the Node application"
+depends = ["setup"]
+run = "npm run build"
+
+[tasks."docker:build"]
+description = "Build the container with pinned provider CLIs"
+run = "docker compose build"
+
+[tasks."docker:login"]
+description = "Authenticate Codex in the persistent container credential volume"
+run = "docker compose run --rm monitor codex login --device-auth"
+
+[tasks."docker:up"]
+description = "Start the dashboard and five-minute collection"
+run = "docker compose up -d"
+
+[tasks."docker:down"]
+description = "Stop containers while retaining usage and authentication volumes"
+run = "docker compose down"
+
+[tasks."docker:logs"]
+description = "Follow application logs"
+run = "docker compose logs -f monitor"
+
+[tasks."claude:login"]
+description = "Authenticate Claude with its normal subscription login flow"
+run = "claude auth login --claudeai"
+
+[tasks."claude:login:status"]
+description = "Check Claude's existing authentication"
+run = "claude auth status"
+
+[tasks."docker:claude:login"]
+description = "Authenticate Claude in its persistent container volume"
+run = "docker compose run --rm monitor claude auth login --claudeai"
+
+[tasks."docker:claude:login:status"]
+description = "Check Claude authentication in the container volume"
+run = "docker compose run --rm monitor claude auth status"
+
+[tasks.audit]
+description = "Scan staged files for secrets before publication"
+run = "gitleaks git --staged --redact --no-banner"
+
+[tasks.format]
+description = "Format TypeScript, TSX, CSS, and JSON with Biome"
+run = "npm run format"
+
+[tasks."format:check"]
+description = "Check formatting without modifying files"
+run = "npm run format:check"
+
+[tasks.check]
+description = "Check formatting, lint rules, and import ordering"
+run = "npm run check"
+
+[tasks."check:fix"]
+description = "Apply safe Biome fixes and formatting"
+run = "npm run check:fix"
