@@ -269,7 +269,81 @@ For anonymous pulls, make the package public in GitHub after first publication.
 For a private package, authenticate Docker to GHCR using credentials with package
 read access. These registry credentials are separate from provider logins.
 
-Set `AI_USAGE_IMAGE=ghcr.io/<owner>/<repository>:latest` in `.env`, then:
+### Standalone Compose example
+
+Save this as `compose.yaml` in a directory on your server:
+
+```yaml
+name: ai-usage-monitor
+
+services:
+  monitor:
+    image: ghcr.io/refractalize/ai-usage-monitor:latest
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      AI_USAGE_DB: /data/usage-v2.sqlite3
+      CODEX_HOME: /codex-home
+      USAGE_PROVIDERS: codex,claude
+      CODEX_USAGE_ACCOUNT_NAME: default
+      CLAUDE_USAGE_ACCOUNT_NAME: default
+      AI_USAGE_TIMEZONE: UTC
+    volumes:
+      - usage-data:/data
+      - codex-auth:/codex-home
+      - claude-auth:/home/node
+    stop_grace_period: 15s
+
+volumes:
+  usage-data:
+  codex-auth:
+  claude-auth:
+```
+
+`usage-data` stores SQLite and its WAL files. `codex-auth` stores Codex login and
+configuration in `CODEX_HOME`. `claude-auth` preserves both `/home/node/.claude/`
+and `/home/node/.claude.json`. These named volumes survive container replacement.
+
+Pull the image, authenticate each provider, and start the monitor:
+
+```sh
+docker compose pull
+docker compose run --rm monitor codex login --device-auth
+docker compose run --rm monitor claude auth login --claudeai
+docker compose up -d
+```
+
+If the container is already running, log in or reauthenticate with:
+
+```sh
+docker compose exec monitor codex login --device-auth
+docker compose exec monitor claude auth login --claudeai
+```
+
+Check the saved login status:
+
+```sh
+docker compose exec monitor codex login status
+docker compose exec monitor claude auth status
+```
+
+To open an interactive shell instead, run `docker compose exec monitor sh` and
+run the same provider login commands inside it. Credentials are saved in the
+mounted provider volumes and used by subsequent scheduled collections.
+
+Follow each CLI's browser login instructions. The dashboard is available at
+`http://localhost:3000`; use the SSH tunnel described above for a remote server.
+To update to the latest image, run `docker compose pull` and `docker compose up -d`.
+Do not run `docker compose down -v` unless you intend to delete usage history and
+saved logins. Existing installations should keep their Compose project name to
+reuse their volumes.
+
+### Using the repository's production Compose file
+
+The production Compose file already points to
+`ghcr.io/refractalize/ai-usage-monitor:latest`. Run:
 
 ```sh
 docker compose -f compose.production.yaml pull
@@ -282,9 +356,9 @@ Use `-f compose.production.yaml` for all production Compose commands. It uses th
 same project name, database volume, and authentication volumes as local Compose.
 Existing installations must retain any `COMPOSE_PROJECT_NAME` override described
 above. No host source checkout or local image build is required; download the
-production Compose file and configure `.env` on the target machine.
+production Compose file to the target machine. Optional settings can go in `.env`.
 
-To update, run `pull` then `up -d` again. To roll back, change `AI_USAGE_IMAGE` to a
+To update, run `pull` then `up -d` again. To roll back, change the `image` field to a
 previous `sha-<full-commit-sha>` tag or `ghcr.io/<owner>/<repository>@sha256:<digest>`
 and repeat those commands. Database compatibility must still be considered when
 rolling back application versions. Never use `down -v` during an update.

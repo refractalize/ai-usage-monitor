@@ -22,5 +22,3 @@ jobs:
       - run: npm run build
       - run: docker compose config --quiet
       - run: docker compose -f compose.production.yaml config --quiet
-        env:
-          AI_USAGE_IMAGE: ghcr.io/example/ai-usage-monitor:test

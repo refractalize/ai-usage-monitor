@@ -2,7 +2,7 @@ name: ai-usage-monitor
 
 services:
   monitor:
-    image: ${AI_USAGE_IMAGE:?Set AI_USAGE_IMAGE to ghcr.io/owner/repository:tag}
+    image: ghcr.io/refractalize/ai-usage-monitor:latest
     init: true
     restart: unless-stopped
     ports:
