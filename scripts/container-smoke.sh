@@ -31,10 +31,14 @@ if [ "$ready" != true ]; then
   exit 1
 fi
 docker exec "$container_id" node --input-type=module -e '
+import { DatabaseSync } from "node:sqlite";
+const db = new DatabaseSync(process.env.AI_USAGE_DB, { readOnly: true });
+if (db.prepare("SELECT COUNT(*) AS n FROM collection_attempts").get().n !== 0) process.exit(1);
+db.close();
 for (const provider of ["codex", "claude"]) {
   const r = await fetch(`http://127.0.0.1:3000/?provider=${provider}`);
   const html = await r.text();
-  if (!r.ok || !html.includes("Automatic collection paused")) process.exit(1);
+  if (!r.ok || !html.includes("Loading your local timezone")) process.exit(1);
 }
 '
 echo "Container smoke passed for $platform"

@@ -43,8 +43,10 @@ mise run start
 The commands accept `--db PATH`. Alternatively set `AI_USAGE_DB`; the default
 is `~/.local/share/ai-usage-monitor/usage-v2.sqlite3`. Set `CODEX_BIN` for an executable
 outside PATH. `HOST` defaults to 127.0.0.1 and `PORT` to 3000.
-`AI_USAGE_TIMEZONE` controls displayed times and daily boundaries; it defaults
-to the server's timezone. Use an IANA name such as `Europe/Paris`.
+The dashboard detects the browser’s timezone and uses it for timestamps and
+daily/weekly chart boundaries, including daylight-saving changes. Times remain
+UTC in SQLite. `AI_USAGE_TIMEZONE` is a server-rendering fallback (default UTC);
+the browser’s timezone takes precedence.
 
 ## Formatting and linting
 

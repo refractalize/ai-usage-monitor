@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, type LoaderFunctionArgs, useLoaderData, useRevalidator } from 'react-router';
+import {
+  Link,
+  type LoaderFunctionArgs,
+  useLoaderData,
+  useRevalidator,
+  useSearchParams,
+} from 'react-router';
 import { summarize } from '../../server/analytics.ts';
 import { windowLabel } from '../../server/models.ts';
 import {
@@ -11,6 +17,7 @@ import {
   scopeFor,
 } from '../../server/providers.ts';
 import { getStore } from '../../server/service.ts';
+import { displayTimeZone, validTimeZone } from '../../server/timezone.ts';
 export function meta() {
   return [{ title: 'AI Usage Monitor' }];
 }
@@ -23,8 +30,7 @@ export function loader({ request }: LoaderFunctionArgs) {
   const provider = parameter ? parseProvider(parameter) : enabled[0];
   const scope = scopeFor(provider);
   const latest = store.latest(scope);
-  const timeZone =
-    process.env.AI_USAGE_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timeZone = displayTimeZone(request.url, process.env.AI_USAGE_TIMEZONE);
   return {
     provider,
     account: scope.account,
@@ -53,6 +59,26 @@ export default function Dashboard() {
   const [selected, setSelected] = useState('');
   const [view, setView] = useState<'days' | 'weeks' | 'periods'>('days');
   const revalidator = useRevalidator();
+  const [, setSearchParams] = useSearchParams();
+  const [browserZone, setBrowserZone] = useState<string | null>(null);
+  useEffect(() => {
+    const syncZone = () => {
+      const zone = validTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone) ?? 'UTC';
+      setBrowserZone(zone);
+      if (zone !== data.timeZone) {
+        setSearchParams(
+          (params) => {
+            params.set('tz', zone);
+            return params;
+          },
+          { replace: true },
+        );
+      }
+    };
+    syncZone();
+    window.addEventListener('focus', syncZone);
+    return () => window.removeEventListener('focus', syncZone);
+  }, [data.timeZone, setSearchParams]);
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') void revalidator.revalidate();
@@ -80,6 +106,17 @@ export default function Dashboard() {
     : [];
   const max = Math.max(1, ...chart.map((d) => d.value));
   const stale = !data.latest || data.now - data.latest.collected_at > 900;
+  // SSR and the first client render match. Avoid flashing server-zone dates while
+  // the browser supplies its zone and the loader recalculates daily boundaries.
+  if (!browserZone || browserZone !== data.timeZone) {
+    return (
+      <main>
+        <h1>AI Usage Monitor</h1>
+        <p role="status">Loading your local timezone…</p>
+        <noscript>Enable JavaScript to display usage in your local timezone.</noscript>
+      </main>
+    );
+  }
   return (
     <main>
       <header>
@@ -97,7 +134,7 @@ export default function Dashboard() {
           <Link
             className={provider === data.provider ? 'active' : ''}
             aria-current={provider === data.provider ? 'page' : undefined}
-            to={`/?provider=${provider}`}
+            to={`/?${new URLSearchParams({ provider, tz: data.timeZone })}`}
             key={provider}
           >
             {providerName(provider)}
