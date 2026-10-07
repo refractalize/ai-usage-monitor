@@ -12,6 +12,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 
+docker run --rm --platform "$platform" "$image" test -s /etc/ssl/certs/ca-certificates.crt
 docker run --rm --platform "$platform" "$image" codex --version
 docker run --rm --platform "$platform" "$image" claude --version
 container_id=$(docker run -d --init --platform "$platform" \

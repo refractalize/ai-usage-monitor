@@ -9,6 +9,10 @@ RUN npm run build
 
 FROM node:26.2.0-bookworm-slim
 WORKDIR /app
+# Provider CLIs need the system trust store for HTTPS login and quota requests.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 # npm installs Codex's native executable for the target architecture (amd64/arm64).
 ARG CODEX_VERSION=0.160.0
 ARG CLAUDE_VERSION=2.1.289
