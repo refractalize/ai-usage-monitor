@@ -71,7 +71,7 @@ formatting scope. Editor integrations should use the project's `biome.json`.
 ## Docker / Raspberry Pi
 
 Use a 64-bit OS (ARM64). The image uses Node 26.2.0, Codex 0.160.0, and
-Claude Code 2.1.289. The npm CLI packages install native executables for the target
+Claude Code 2.1.310. The npm CLI packages install native executables for the target
 architecture. Claude auto-updates are disabled so the experimental protocol stays pinned.
 
 ```sh
@@ -128,12 +128,12 @@ mise run claude:login
 mise run claude:login:status
 mise run collect --provider claude
 mise run status --provider claude
-USAGE_PROVIDERS=codex,claude mise run dev
+mise run dev
 ```
 
-Outside Compose, `USAGE_PROVIDERS` defaults to `codex`. Use `claude` to collect only Claude, or
-`codex,claude` for both. Each enabled provider has an independent five-minute
-scheduler, timeout, and failure record. A failed Claude read doesn't stop Codex.
+`USAGE_PROVIDERS` defaults to `codex,claude` everywhere. Set it to `codex` or `claude`
+to collect only one. Each enabled provider has an independent five-minute
+scheduler (Claude backs off when rate-limited), timeout, and failure record. A failed Claude read doesn't stop Codex.
 The dashboard has a provider selector; disabled providers' stored history remains
 viewable. `Refresh view` reads SQLite and never triggers a CLI collection.
 
@@ -166,10 +166,12 @@ It runs in a temporary empty working directory and only uses the CLI for auth an
 network access. Tests assert this request allowlist and process cleanup.
 
 Anthropic explicitly marks this control API as experimental; upgrades need a
-compatibility check. Claude can return cached quota readings without exposing
-whether a fallback occurred or when the underlying reading was fetched. Accordingly,
-the dashboard says **Recently collected**, not **Up to date**, for Claude and always
-shows a freshness caveat. An unavailable/null quota response fails collection.
+compatibility check. The collector passes `--debug-file` into its private temporary
+directory and only accepts a reading when that log shows the CLI fetched
+`/api/oauth/usage` successfully in the same run, so replayed or cached readings are
+rejected. When the fetch fails, the CLI still answers with null limits; the debug log
+is then used to report a rate limit (which makes the scheduler back off), an HTTP
+error, or a network failure.
 
 `five_hour` maps to 300 minutes; `seven_day` and recognized model-week keys map to
 10,080 minutes. Model-specific allowances remain separate. Unfamiliar window keys
@@ -243,7 +245,7 @@ No token or dollar metrics are normalized or calculated; raw provider responses 
 analytics, CLI, and scheduling. `node-tests/` uses Node's test runner and fake
 app-server processes; no account is required. Account status reads use the initialization schema generated from
 installed Codex 0.160.0: initialize → initialized → account/rateLimits/read. Claude
-uses the control protocol verified against CLI 2.1.289; its normalization and
+uses the control protocol verified against CLI 2.1.310; its normalization and
 account/provider isolation are covered by fixture-based tests.
 
 The Docker image must still be built and exercised on the target Pi, including

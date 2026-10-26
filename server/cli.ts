@@ -46,12 +46,8 @@ try {
     store = new Store(values.db);
     if (command === 'collect') {
       const results = await collectProviders(store, [...providers]);
-      results.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          console.error(`${providerName(providers[i])}: ${safeError(r.reason)}`);
-          process.exitCode = 1;
-        }
-      });
+      // collect() has already logged each failure.
+      if (results.some((r) => r.status === 'rejected')) process.exitCode = 1;
     }
     const exported = [];
     for (const provider of providers) {

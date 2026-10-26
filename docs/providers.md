@@ -31,8 +31,8 @@ sum unrelated allowances. Do not guess durations for unknown windows.
 
 The account environment variable follows `<PROVIDER_ID>_USAGE_ACCOUNT_NAME` (uppercase).
 Account names are operator-supplied, not detected from authentication. Provider
-selection uses `USAGE_PROVIDERS`; Compose explicitly enables the bundled providers.
-Local commands default to the first registered provider.
+selection uses `USAGE_PROVIDERS`; when it is unset or empty, every registered provider
+is enabled, both under Compose and for local commands.
 
 Metadata is separate from server adapters so Node subprocess code and credential
 handling cannot be imported into the browser bundle. Raw responses are available

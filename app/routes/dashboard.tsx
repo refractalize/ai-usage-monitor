@@ -9,21 +9,21 @@ import {
 import { summarize } from '../../server/analytics.ts';
 import { windowLabel } from '../../server/models.ts';
 import {
-  enabledProviders,
   PROVIDERS,
   parseProvider,
   providerInfo,
   providerName,
   scopeFor,
 } from '../../server/providers.ts';
-import { getStore } from '../../server/service.ts';
+import { getCollection, getStore } from '../../server/service.ts';
 import { displayTimeZone, validTimeZone } from '../../server/timezone.ts';
+import { type HistoryView, historyChart } from '../chart.ts';
 export function meta() {
   return [{ title: 'AI Usage Monitor' }];
 }
 export function loader({ request }: LoaderFunctionArgs) {
   const store = getStore();
-  const enabled = enabledProviders();
+  const { providers: enabled, scheduled } = getCollection();
   const parameter = new URL(request.url).searchParams.get('provider');
   if (parameter && !PROVIDERS.includes(parameter as (typeof PROVIDERS)[number]))
     throw new Response('Unknown provider', { status: 400 });
@@ -40,7 +40,7 @@ export function loader({ request }: LoaderFunctionArgs) {
     series: summarize(store.samples(scope), timeZone),
     timeZone,
     now: Date.now() / 1000,
-    scheduled: process.env.AI_USAGE_SCHEDULE !== 'off' && enabled.includes(provider),
+    scheduled: scheduled && enabled.includes(provider),
   };
 }
 const percent = (n: number) => `${Number(n.toFixed(2))}%`;
@@ -57,7 +57,7 @@ function stamp(n: number | null, zone: string) {
 export default function Dashboard() {
   const data = useLoaderData<typeof loader>();
   const [selected, setSelected] = useState('');
-  const [view, setView] = useState<'days' | 'weeks' | 'periods'>('days');
+  const [view, setView] = useState<HistoryView>('days');
   const revalidator = useRevalidator();
   const [, setSearchParams] = useSearchParams();
   const [browserZone, setBrowserZone] = useState<string | null>(null);
@@ -89,21 +89,7 @@ export default function Dashboard() {
     data.series.find((s) => s.id === selected) ??
     data.series.find((s) => s.duration === 10080) ??
     data.series[0];
-  const chart = series
-    ? view === 'periods'
-      ? series.periods.slice(-12).map((p) => ({
-          label: stamp(p.resets_at, data.timeZone) + (p.resets_at > data.now ? ' · current' : ''),
-          value: p.max_used,
-          uncertain: false,
-          samples: p.samples,
-        }))
-      : series[view].slice(view === 'days' ? -30 : -12).map((d) => ({
-          label: d.date,
-          value: d.points,
-          uncertain: d.uncertain,
-          samples: d.samples,
-        }))
-    : [];
+  const chart = historyChart(series, view, data.now, (reset) => stamp(reset, data.timeZone));
   const max = Math.max(1, ...chart.map((d) => d.value));
   const stale = !data.latest || data.now - data.latest.collected_at > 900;
   // SSR and the first client render match. Avoid flashing server-zone dates while
@@ -174,7 +160,7 @@ export default function Dashboard() {
           <p>
             Authenticate {providerName(data.provider)} using its normal login flow.{' '}
             {data.scheduled
-              ? 'The collector will try again on its next five-minute run.'
+              ? 'The collector will retry automatically.'
               : 'Enable this provider in USAGE_PROVIDERS to start scheduled collection.'}
           </p>
         </section>
@@ -246,7 +232,7 @@ export default function Dashboard() {
             aria-label={`${series.label}: ${view === 'periods' ? 'reset-period maxima' : 'percentage points consumed'}. Exact values in the table below.`}
           >
             {chart.map((d, i) => (
-              <div className="bar-column" key={d.label}>
+              <div className="bar-column" key={d.id}>
                 <span className="bar-value">{Number(d.value.toFixed(1))}</span>
                 <div
                   className="bar"
@@ -270,7 +256,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {[...chart].reverse().map((d) => (
-                  <tr key={d.label}>
+                  <tr key={d.id}>
                     <td>{d.label}</td>
                     <td>
                       {view === 'periods' ? percent(d.value) : points(d.value)}

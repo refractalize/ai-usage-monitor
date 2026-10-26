@@ -7,13 +7,14 @@ import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { summarize } from '../server/analytics.ts';
 import type { Sample } from '../server/database.ts';
+import { CollectionError } from '../server/models.ts';
 import {
   handshakeAndRead,
   readRateLimits,
   waitForResponse,
 } from '../server/providers/codex/appserver.ts';
 import { parseWindows } from '../server/providers/codex/models.ts';
-import { INTERVAL_MS, startScheduler } from '../server/scheduler.ts';
+import { backoffDelay, INTERVAL_MS, MAX_BACKOFF_MS, startScheduler } from '../server/scheduler.ts';
 import { FixtureStore as Store } from './helpers.ts';
 
 const response = (used = 37, reset = 20000) => ({
@@ -319,4 +320,52 @@ test('failed collection records sanitized failure and no bogus snapshot', async 
     else process.env.CODEX_BIN = before;
     store.close();
   }
+});
+
+test('rate limits back off exponentially, honour the upstream hint, and reset on success', async (t) => {
+  assert.equal(backoffDelay(INTERVAL_MS, 1), INTERVAL_MS);
+  assert.equal(backoffDelay(INTERVAL_MS, 3), 4 * INTERVAL_MS);
+  assert.equal(backoffDelay(INTERVAL_MS, 10), MAX_BACKOFF_MS);
+  assert.equal(backoffDelay(INTERVAL_MS, 1, 600_000), 630_000);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const limited = (retryAfterMs?: number) =>
+    new CollectionError('429', { kind: 'rate_limited', retryAfterMs });
+  const outcomes = [
+    limited(),
+    limited(),
+    null,
+    limited(),
+    new CollectionError('network'),
+    limited(600_000),
+  ];
+  const waits: [number, number][] = [];
+  let calls = 0;
+  const s = startScheduler({
+    now: () => 0,
+    collect: async () => {
+      calls++;
+      const outcome = outcomes.shift();
+      if (outcome) throw outcome;
+    },
+    onBackoff: (wait, consecutive) => waits.push([wait, consecutive]),
+  });
+  const step = async (ms: number) => {
+    t.mock.timers.tick(ms);
+    await new Promise((resolve) => setImmediate(resolve));
+  };
+  await step(0);
+  for (const wait of [300_000, 600_000, 300_000, 300_000, 300_000]) {
+    const before = calls;
+    await step(wait - 1);
+    assert.equal(calls, before, `no early run before ${wait}ms`);
+    await step(1);
+    assert.equal(calls, before + 1);
+  }
+  await s.stop();
+  assert.deepEqual(waits, [
+    [300_000, 1],
+    [600_000, 2],
+    [300_000, 1],
+    [630_000, 1],
+  ]);
 });
