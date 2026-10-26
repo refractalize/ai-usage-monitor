@@ -1,8 +1,9 @@
 import { createRequestHandler } from '@react-router/express';
 import express from 'express';
+import { duration, log } from './log.ts';
 import { enabledProviders, providerName, scopeFor } from './providers.ts';
-import { startScheduler } from './scheduler.ts';
-import { collect, getStore, safeError } from './service.ts';
+import { INTERVAL_MS, startScheduler } from './scheduler.ts';
+import { collect, getStore, setCollection } from './service.ts';
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = express();
@@ -21,15 +22,15 @@ const schedulers =
         const lastAttempt = store.lastAttempt(scope);
         return startScheduler({
           lastAttemptMs: lastAttempt ? lastAttempt.attempted_at * 1000 : undefined,
-          collect: async (signal) => {
-            try {
-              await collect(store, signal, scope);
-            } catch (error) {
-              console.error(`${providerName(provider)}: ${safeError(error)}`);
-            }
-          },
+          // collect() logs every outcome itself.
+          collect: (signal) => collect(store, signal, scope),
+          onBackoff: (wait, consecutive) =>
+            log(
+              `${providerName(provider)}: backing off after ${consecutive} rate-limited attempt(s); next attempt in ${duration(wait)} at ${new Date(Date.now() + wait).toISOString()}.`,
+            ),
         });
       });
+setCollection({ providers, scheduled: schedulers.length > 0 });
 const vite = dev
   ? await (await import('vite')).createServer({
       server: { middlewareMode: true },
@@ -47,8 +48,8 @@ app.use(
   }),
 );
 const server = app.listen(Number(process.env.PORT ?? 3000), process.env.HOST ?? '127.0.0.1', () => {
-  console.error(
-    `Subscription usage dashboard listening on port ${process.env.PORT ?? 3000}; collection ${schedulers.length ? 'every 5 minutes' : 'disabled'}.`,
+  log(
+    `Subscription usage dashboard listening on port ${process.env.PORT ?? 3000}; ${schedulers.length ? `collecting ${providers.map(providerName).join(', ')} every ${duration(INTERVAL_MS)}` : 'collection disabled'}.`,
   );
 });
 let stopping = false;

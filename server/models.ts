@@ -1,4 +1,17 @@
-export class CollectionError extends Error {}
+// `rate_limited` makes the scheduler back off; `retryAfterMs` is the upstream hint, when known.
+export type CollectionErrorKind = 'rate_limited' | 'error';
+export class CollectionError extends Error {
+  readonly kind: CollectionErrorKind;
+  readonly retryAfterMs?: number;
+  constructor(
+    message: string,
+    options: { kind?: CollectionErrorKind; retryAfterMs?: number } = {},
+  ) {
+    super(message);
+    this.kind = options.kind ?? 'error';
+    this.retryAfterMs = options.retryAfterMs;
+  }
+}
 export type JsonObject = Record<string, unknown>;
 export function object(value: unknown): value is JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

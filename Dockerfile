@@ -15,7 +15,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 # npm installs Codex's native executable for the target architecture (amd64/arm64).
 ARG CODEX_VERSION=0.160.0
-ARG CLAUDE_VERSION=2.1.289
+ARG CLAUDE_VERSION=2.1.310
 RUN npm install --global @openai/codex@${CODEX_VERSION} && codex --version
 RUN npm install --global @anthropic-ai/claude-code@${CLAUDE_VERSION} && claude --version
 COPY package.json package-lock.json ./

@@ -10,9 +10,8 @@ export const providerMetadata = {
   codex: { name: 'Codex', freshnessLabel: 'Up to date', notice: null },
   claude: {
     name: 'Claude',
-    freshnessLabel: 'Recently collected',
-    notice:
-      'Claude support is experimental. Readings may come from the CLI’s cache; collection time does not guarantee upstream freshness.',
+    freshnessLabel: 'Up to date',
+    notice: null,
   },
 } satisfies Record<string, ProviderInfo>;
 export type Provider = keyof typeof providerMetadata;
@@ -42,7 +41,9 @@ export function scopeFor(provider: Provider): Scope {
 export function enabledProviders(): Provider[] {
   return [
     ...new Set(
-      (process.env.USAGE_PROVIDERS ?? PROVIDERS[0]).split(',').map((v) => parseProvider(v.trim())),
+      (process.env.USAGE_PROVIDERS || PROVIDERS.join(','))
+        .split(',')
+        .map((v) => parseProvider(v.trim())),
     ),
   ];
 }

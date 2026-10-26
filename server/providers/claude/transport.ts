@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CollectionError, type JsonObject, object } from '../../models.ts';
 import { type RpcTransport, runStdio } from '../../stdio.ts';
+import { claudeResult, usageFetchError, usageFetched } from './models.ts';
 
 export async function waitForControlResponse(
   transport: RpcTransport,
@@ -49,14 +50,16 @@ export async function initializeAndReadClaude(transport: RpcTransport) {
   });
   return waitForControlResponse(transport, 'usage');
 }
-// Verified against Claude Code 2.1.289. This is an experimental control API.
+// Verified against Claude Code 2.1.310. This is an experimental control API.
 // No user message, prompt, model turn, transcript scan, or direct HTTP request.
 export async function readClaudeUsage(
   options: { claude?: string; timeoutMs?: number; signal?: AbortSignal } = {},
 ) {
   const cwd = mkdtempSync(join(tmpdir(), 'claude-usage-'));
+  // Private to the temp directory and removed with it; read to verify and classify the fetch.
+  const debugLog = join(cwd, 'debug.log');
   try {
-    return await runStdio(
+    const response = await runStdio(
       {
         executable: options.claude ?? process.env.CLAUDE_BIN ?? 'claude',
         name: 'Claude Code',
@@ -78,6 +81,8 @@ export async function readClaudeUsage(
           '{"disableAllHooks":true}',
           '--tools',
           '',
+          '--debug-file',
+          debugLog,
         ],
         env: { ...process.env, DISABLE_AUTOUPDATER: '1' },
         timeoutMs: options.timeoutMs,
@@ -89,6 +94,21 @@ export async function readClaudeUsage(
       },
       initializeAndReadClaude,
     );
+    const result = claudeResult(response);
+    let text = '';
+    try {
+      text = readFileSync(debugLog, 'utf8');
+    } catch {
+      /* Treated as an unverified or unexplained read below. */
+    }
+    if (result.rate_limits_available === true && result.rate_limits == null)
+      throw usageFetchError(text);
+    // Only accept limits this process fetched, never a replayed or cached reading.
+    if (!usageFetched(text))
+      throw new CollectionError(
+        'Claude returned usage limits without fetching them in this run; refusing a possibly cached reading.',
+      );
+    return response;
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

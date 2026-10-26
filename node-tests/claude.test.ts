@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { summarize } from '../server/analytics.ts';
-import type { JsonObject } from '../server/models.ts';
-import { parseClaudeWindows } from '../server/providers/claude/models.ts';
+import { CollectionError, type JsonObject } from '../server/models.ts';
+import { parseClaudeWindows, usageFetchError } from '../server/providers/claude/models.ts';
 import {
   initializeAndReadClaude,
   readClaudeUsage,
@@ -214,9 +214,11 @@ function fake(body: string) {
   writeFileSync(path, `#!/usr/bin/env node\n${body}`, { mode: 0o700 });
   return { path, dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
-function successfulFake(log?: string) {
+// `debug` is what the fake writes to --debug-file: by default, a fetch made in this run.
+function successfulFake(log?: string, debug = 'fetchUtilization: 200 after 1 attempt(s)\n') {
   return fake(`const fs=require('fs');const rl=require('readline').createInterface({input:process.stdin});
     ${log ? `fs.writeFileSync(${JSON.stringify(log)}, JSON.stringify({args:process.argv.slice(2),cwd:process.cwd()}));` : ''}
+    fs.writeFileSync(process.argv[process.argv.indexOf('--debug-file')+1], ${JSON.stringify(debug)});
     rl.on('line',line=>{const m=JSON.parse(line);
       if(m.type!=='control_request'||!['initialize','get_usage'].includes(m.request.subtype))process.exit(12);
       if(m.request.subtype==='get_usage'&&m.request.skip_behaviors!==true)process.exit(13);
@@ -301,10 +303,14 @@ test('a failing Codex collector does not prevent Claude from saving', async () =
     f.cleanup();
   }
 });
-test('Claude is opt-in and enabled-provider configuration is validated', () => {
+test('Codex and Claude are both enabled by default and provider configuration is validated', () => {
   const old = process.env.USAGE_PROVIDERS;
   try {
     delete process.env.USAGE_PROVIDERS;
+    assert.deepEqual(enabledProviders(), ['codex', 'claude']);
+    process.env.USAGE_PROVIDERS = '';
+    assert.deepEqual(enabledProviders(), ['codex', 'claude']);
+    process.env.USAGE_PROVIDERS = 'codex';
     assert.deepEqual(enabledProviders(), ['codex']);
     process.env.USAGE_PROVIDERS = 'codex,claude,codex';
     assert.deepEqual(enabledProviders(), ['codex', 'claude']);
@@ -313,5 +319,71 @@ test('Claude is opt-in and enabled-provider configuration is validated', () => {
   } finally {
     if (old === undefined) delete process.env.USAGE_PROVIDERS;
     else process.env.USAGE_PROVIDERS = old;
+  }
+});
+
+// Excerpts from real Claude Code 2.1.310 debug logs.
+const GET = '2026-10-26T15:47:39.877Z [DEBUG] fetchUtilization: GET /api/oauth/usage (attempt 1)\n';
+test('Claude usage fetch failures are classified from the CLI debug log', () => {
+  const limited = usageFetchError(
+    `${GET}2026-10-26T15:47:39.952Z [DEBUG] fetchUtilization: 429 remembered for this bearer; not asking again for 258s
+2026-10-26T15:47:39.953Z [ERROR] Failed to load usage data: Request failed with status code 429\n`,
+  );
+  assert.equal(limited.kind, 'rate_limited');
+  assert.equal(limited.retryAfterMs, 258_000);
+  assert.match(limited.message, /429.*258s/);
+  const bare429 = usageFetchError(
+    `${GET}[ERROR] Failed to load usage data: Request failed with status code 429\n`,
+  );
+  assert.equal(bare429.kind, 'rate_limited');
+  assert.equal(bare429.retryAfterMs, undefined);
+  const auth = usageFetchError(
+    `${GET}[ERROR] Failed to load usage data: Request failed with status code 401\n`,
+  );
+  assert.equal(auth.kind, 'error');
+  assert.match(auth.message, /HTTP 401.*auth status/);
+  assert.match(
+    usageFetchError(
+      `${GET}[ERROR] Failed to load usage data: Request failed with status code 503\n`,
+    ).message,
+    /HTTP 503.*upstream/,
+  );
+  const network = usageFetchError(
+    `${GET}[ERROR] Failed to load usage data: proxy refused the connection Bearer sk-ant-SECRET\n`,
+  );
+  assert.equal(network.kind, 'error');
+  assert.match(network.message, /could not reach.*proxy refused/);
+  assert.ok(!network.message.includes('SECRET'));
+  assert.equal(usageFetchError('[DEBUG] Error log sink initialized\n').kind, 'rate_limited');
+  assert.match(usageFetchError('').message, /no debug log/);
+  assert.match(usageFetchError(`${GET}[DEBUG] something new\n`).message, /did not say why/);
+});
+test('Claude transport turns a null usage response into the classified debug-log error', async () => {
+  const unavailable = response();
+  (unavailable.response.response as JsonObject).rate_limits = null;
+  const f =
+    fake(`const fs=require('fs');const rl=require('readline').createInterface({input:process.stdin});
+    const log=process.argv[process.argv.indexOf('--debug-file')+1];
+    fs.writeFileSync(log, ${JSON.stringify(`${GET}[DEBUG] fetchUtilization: 429 remembered for this bearer; not asking again for 60s\n`)});
+    rl.on('line',line=>{const m=JSON.parse(line);
+      console.log(JSON.stringify(m.request.subtype==='initialize'?{type:'control_response',response:{request_id:m.request_id,subtype:'success',response:{}}}:${JSON.stringify(unavailable)}));
+    });`);
+  try {
+    await assert.rejects(
+      readClaudeUsage({ claude: f.path }),
+      (e) => e instanceof CollectionError && e.kind === 'rate_limited' && e.retryAfterMs === 60_000,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+test('Claude limits are only accepted when this run fetched them', async () => {
+  for (const debug of ['', `${GET}[DEBUG] usage served from memory\n`]) {
+    const f = successfulFake(undefined, debug);
+    try {
+      await assert.rejects(readClaudeUsage({ claude: f.path }), /without fetching/);
+    } finally {
+      f.cleanup();
+    }
   }
 });
