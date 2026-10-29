@@ -1,13 +1,17 @@
 import type { Sample } from './database.ts';
 import { windowLabel } from './models.ts';
+// Percentages of different plans are different units, so every total and period
+// belongs to exactly one plan and is never added to another plan's.
 export interface Total {
   date: string;
+  plan: string | null;
   points: number;
   samples: number;
   uncertain: boolean;
 }
 export interface Period {
   resets_at: number;
+  plan: string | null;
   max_used: number;
   samples: number;
 }
@@ -16,6 +20,8 @@ export interface Series {
   label: string;
   limit_id: string | null;
   duration: number | null;
+  /** Plans in order of first observation. */
+  plans: (string | null)[];
   days: Total[];
   weeks: Total[];
   periods: Period[];
@@ -28,6 +34,10 @@ export function dayAt(seconds: number, timeZone: string) {
     day: '2-digit',
   }).format(new Date(seconds * 1000));
 }
+// Providers report the same reset with up to ~1s of jitter between reads (Claude adds
+// fractional seconds to every read). Genuine moves, such as Codex shifting a reset by
+// minutes, stay distinct.
+export const RESET_TOLERANCE_SECONDS = 60;
 function monday(date: string) {
   const d = new Date(`${date}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
@@ -61,39 +71,64 @@ export function summarize(samples: Sample[], timeZone: string): Series[] {
   return [...groups].map(([id, rows]) => {
     const first = rows[0];
     const days = new Map<string, Total>();
-    const periods = new Map<number, Period>();
-    const highWater = new Map<number, number>();
+    const periods = new Map<string, Period>();
+    const highWater = new Map<string, number>();
+    const plans: (string | null)[] = [];
+    const anchors: number[] = [];
+    const canonicalReset = (reset: number) => {
+      const anchor = anchors.find((a) => Math.abs(a - reset) <= RESET_TOLERANCE_SECONDS);
+      if (anchor !== undefined) return anchor;
+      const rounded = Math.round(reset);
+      anchors.push(rounded);
+      return rounded;
+    };
     let previous: Sample | undefined;
+    let previousReset: number | undefined;
     for (const row of rows) {
+      const plan = row.plan_type;
+      if (!plans.includes(plan)) plans.push(plan);
       const date = dayAt(row.collected_at, timeZone);
-      const day = days.get(date) ?? { date, points: 0, samples: 0, uncertain: false };
-      days.set(date, day);
+      const dayKey = JSON.stringify([date, plan]);
+      const day = days.get(dayKey) ?? { date, plan, points: 0, samples: 0, uncertain: false };
+      days.set(dayKey, day);
       day.samples++;
       const used = row.used_percent;
-      const reset = row.resets_at;
-      if (used === null || reset === null) {
+      if (used === null || row.resets_at === null) {
         day.uncertain = true;
         previous = undefined;
         continue;
       }
-      const period = periods.get(reset) ?? { resets_at: reset, max_used: used, samples: 0 };
+      const reset = canonicalReset(row.resets_at);
+      const periodKey = JSON.stringify([reset, plan]);
+      const period = periods.get(periodKey) ?? {
+        resets_at: reset,
+        plan,
+        max_used: used,
+        samples: 0,
+      };
       period.max_used = Math.max(period.max_used, used);
       period.samples++;
-      periods.set(reset, period);
-      const high = highWater.get(reset);
+      periods.set(periodKey, period);
+      let high = highWater.get(periodKey);
       // First-ever observation is a baseline, not consumption during that day.
-      if (previous && previous.used_percent !== null && previous.resets_at !== null) {
-        if (reset === previous.resets_at) {
+      if (previous && previous.used_percent !== null && previousReset !== undefined) {
+        if (previous.plan_type !== plan) {
+          // A plan change rescales the percentage; the new plan's first reading is a baseline.
+          day.uncertain = true;
+        } else if (reset === previousReset && used < previous.used_percent / 2) {
+          // The provider reset the allowance early without moving its reset time
+          // (seen with Claude's weekly limit): usage since then is new consumption.
+          day.points += used;
+          high = undefined;
+          day.uncertain = true;
+        } else if (reset === previousReset) {
+          // Small downward corrections are noise; recovering to the high-water mark is not new use.
           day.points += Math.max(0, used - (high ?? previous.used_percent));
           if (used < previous.used_percent) day.uncertain = true;
         } else {
           // A new fixed period can start after the old reset, including an idle delay.
           // A moving/reset-corrected timestamp before expiry is not evidence of new consumption.
-          if (
-            reset > previous.resets_at &&
-            row.collected_at >= previous.resets_at &&
-            high === undefined
-          ) {
+          if (reset > previousReset && row.collected_at >= previousReset && high === undefined) {
             day.points += used;
           }
           day.uncertain = true;
@@ -106,25 +141,35 @@ export function summarize(samples: Sample[], timeZone: string): Series[] {
       } else {
         day.uncertain = true;
       }
-      highWater.set(reset, Math.max(high ?? used, used));
+      highWater.set(periodKey, Math.max(high ?? used, used));
       previous = row;
+      previousReset = reset;
     }
     const weeks = new Map<string, Total>();
     for (const day of days.values()) {
       const date = monday(day.date);
-      const week = weeks.get(date) ?? { date, points: 0, samples: 0, uncertain: false };
+      const weekKey = JSON.stringify([date, day.plan]);
+      const week = weeks.get(weekKey) ?? {
+        date,
+        plan: day.plan,
+        points: 0,
+        samples: 0,
+        uncertain: false,
+      };
       week.points += day.points;
       week.samples += day.samples;
       week.uncertain ||= day.uncertain;
-      weeks.set(date, week);
+      weeks.set(weekKey, week);
     }
     return {
       id,
       label: `${first.limit_id ?? 'Default'} · ${windowLabel(first.window_duration_minutes, first.window_key)}`,
       limit_id: first.limit_id,
       duration: first.window_duration_minutes,
+      plans,
       days: [...days.values()],
       weeks: [...weeks.values()],
+      // Stable sort keeps plans within a shared reset in observation order.
       periods: [...periods.values()].sort((a, b) => a.resets_at - b.resets_at),
     };
   });

@@ -1,7 +1,91 @@
+/* Colour tokens. Light mode is Lagoon; dark mode is Midnight, below. Each chart series
+   trio was validated (dataviz palette checks) against its mode's --surface. */
+:root {
+  color-scheme: light;
+  --bg: #f1f6f6;
+  --surface: #ffffff;
+  --ink: #102a2d;
+  --ink-2: #51686b;
+  --ink-3: #62777a;
+  --line: #dde8e9;
+  --line-soft: #eaf1f1;
+  --control-border: #c8d9db;
+  --subtle: #e9f1f2;
+  --hover: #e3eeef;
+  --accent: #0f5c63;
+  --on-accent: #ffffff;
+  --focus: #6fb6bd;
+  --progress: #0e9aa7;
+  --progress-track: #e0ecee;
+  --badge-bg: #d4ecee;
+  --badge-ink: #0f5c63;
+  --warn-bg: #faeccf;
+  --warn-ink: #725519;
+  --notice-bg: #fff2dc;
+  --series-0: #0e9aa7;
+  --series-1: #eb6834;
+  --series-2: #6250d6;
+}
+/* Dark mode (Midnight): chosen with the theme toggle, or following the OS while the
+   toggle is on System. Declared under both scopes; they must stay identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111417;
+    --surface: #1a1d21;
+    --ink: #eceff1;
+    --ink-2: #a9b1b9;
+    --ink-3: #8f98a1;
+    --line: #2c3137;
+    --line-soft: #24282d;
+    --control-border: #3a4048;
+    --subtle: #23272c;
+    --hover: #2a2f35;
+    --accent: #2563b8;
+    --on-accent: #ffffff;
+    --focus: #6aa6f0;
+    --progress: #3987e5;
+    --progress-track: #2a2f35;
+    --badge-bg: #16324f;
+    --badge-ink: #9cc4f5;
+    --warn-bg: #3d3215;
+    --warn-ink: #f0cf7a;
+    --notice-bg: #33291a;
+    --series-0: #3987e5;
+    --series-1: #d95926;
+    --series-2: #199e70;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111417;
+  --surface: #1a1d21;
+  --ink: #eceff1;
+  --ink-2: #a9b1b9;
+  --ink-3: #8f98a1;
+  --line: #2c3137;
+  --line-soft: #24282d;
+  --control-border: #3a4048;
+  --subtle: #23272c;
+  --hover: #2a2f35;
+  --accent: #2563b8;
+  --on-accent: #ffffff;
+  --focus: #6aa6f0;
+  --progress: #3987e5;
+  --progress-track: #2a2f35;
+  --badge-bg: #16324f;
+  --badge-ink: #9cc4f5;
+  --warn-bg: #3d3215;
+  --warn-ink: #f0cf7a;
+  --notice-bg: #33291a;
+  --series-0: #3987e5;
+  --series-1: #d95926;
+  --series-2: #199e70;
+}
 :root {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  color: #183133;
-  background: #f4f6f3;
+  color: var(--ink);
+  background: var(--bg);
   font-synthesis: none;
 }
 * {
@@ -37,7 +121,7 @@ h2 {
   margin: 10px 0 20px;
 }
 p {
-  color: #5c6f70;
+  color: var(--ink-2);
   font-size: 14px;
   line-height: 1.65;
   margin: 8px 0;
@@ -46,23 +130,29 @@ p {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.7px;
-  color: #597474;
+  color: var(--ink-3);
 }
 .badge {
-  background: #d9eee4;
-  color: #24644d;
+  background: var(--badge-bg);
+  color: var(--badge-ink);
   padding: 9px 14px;
   border-radius: 30px;
   font-size: 12px;
   white-space: nowrap;
 }
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
 .warning {
-  background: #faeccf;
-  color: #725519;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
 }
 .collection {
-  border-top: 1px solid #dce3df;
-  border-bottom: 1px solid #dce3df;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   padding: 20px 0;
   margin-bottom: 28px;
 }
@@ -76,22 +166,44 @@ button,
 select {
   font: inherit;
   color: inherit;
-  border: 1px solid #ccd9d2;
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   padding: 10px 14px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
 }
 button:hover {
-  background: #edf3ef;
+  background: var(--hover);
 }
 button:focus-visible,
 select:focus-visible {
-  outline: 3px solid #78ac97;
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 button:disabled {
   opacity: 0.5;
+}
+.theme-toggle {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.theme-toggle button {
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 12px;
+  background: transparent;
+  color: var(--ink-2);
+}
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--subtle);
+  color: var(--ink);
+  font-weight: 600;
 }
 .cards {
   display: grid;
@@ -102,8 +214,8 @@ button:disabled {
 .card,
 .history,
 .empty {
-  background: white;
-  border: 1px solid #e0e7e1;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 26px;
 }
@@ -115,7 +227,7 @@ button:disabled {
 .metric span {
   font-size: 15px;
   font-weight: 400;
-  color: #6a7c7b;
+  color: var(--ink-3);
   letter-spacing: 0;
 }
 progress {
@@ -128,14 +240,17 @@ progress {
   border-radius: 6px;
   overflow: hidden;
 }
+progress {
+  background: var(--progress-track);
+}
 progress::-webkit-progress-bar {
-  background: #e6eee8;
+  background: var(--progress-track);
 }
 progress::-webkit-progress-value {
-  background: #3b8264;
+  background: var(--progress);
 }
 progress::-moz-progress-bar {
-  background: #3b8264;
+  background: var(--progress);
 }
 dl {
   display: grid;
@@ -145,7 +260,7 @@ dl {
   margin: 24px 0 0;
 }
 dt {
-  color: #6a7c7b;
+  color: var(--ink-3);
 }
 dd {
   margin: 0;
@@ -156,7 +271,7 @@ dd {
 }
 .section-title label {
   font-size: 11px;
-  color: #6a7c7b;
+  color: var(--ink-3);
 }
 .section-title select {
   display: block;
@@ -171,12 +286,12 @@ dd {
 }
 .tabs button {
   border: 0;
-  background: #f1f5f2;
+  background: var(--subtle);
   font-size: 13px;
 }
 .tabs button[aria-pressed="true"] {
-  background: #215c46;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .chart {
   display: flex;
@@ -184,7 +299,7 @@ dd {
   gap: 8px;
   height: 205px;
   margin: 24px 0 30px;
-  border-bottom: 1px solid #dae3dd;
+  border-bottom: 1px solid var(--line);
   padding: 0 8px 10px;
   overflow-x: auto;
 }
@@ -196,19 +311,70 @@ dd {
   align-items: center;
   gap: 7px;
 }
+.bar-group {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+}
+.bar-stack {
+  flex: 1;
+  min-width: 0;
+  max-width: 45px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
 .bar {
   width: 100%;
-  max-width: 45px;
-  background: #73a88a;
+  background: var(--plan);
   border-radius: 5px 5px 0 0;
 }
 .bar:hover {
-  background: #326d52;
+  filter: brightness(0.85);
+}
+/* Validated light palette. The current plan, and any chart showing a single plan, use
+   slot 0, so a plan change only adds colours for earlier plans. Values stay in text ink;
+   the bar alone carries the plan. */
+.plan-main,
+.plan-0 {
+  --plan: var(--series-0);
+}
+.plan-1 {
+  --plan: var(--series-1);
+}
+.plan-2 {
+  --plan: var(--series-2);
+}
+.swatch {
+  background: var(--plan);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
 }
 .bar-value,
 .bar-column small {
   font-size: 10px;
-  color: #5d7470;
+  color: var(--ink-2);
 }
 .table-wrap {
   max-height: 350px;
@@ -221,8 +387,8 @@ table {
   text-align: left;
 }
 th {
-  background: #f5f7f4;
-  color: #657a73;
+  background: var(--subtle);
+  color: var(--ink-3);
   font-size: 11px;
   position: sticky;
   top: 0;
@@ -230,7 +396,7 @@ th {
 td,
 th {
   padding: 12px 14px;
-  border-bottom: 1px solid #eaf0eb;
+  border-bottom: 1px solid var(--line-soft);
 }
 td:not(:first-child),
 th:not(:first-child) {
@@ -239,7 +405,7 @@ th:not(:first-child) {
 .footnote,
 footer {
   font-size: 12px;
-  color: #6b7c78;
+  color: var(--ink-3);
   line-height: 1.7;
 }
 .footnote {
@@ -249,7 +415,7 @@ footer {
   margin-top: 25px;
 }
 .notice {
-  background: #fff0d9;
+  background: var(--notice-bg);
   padding: 15px;
   border-radius: 8px;
 }
@@ -265,6 +431,11 @@ footer {
     align-items: flex-start;
     flex-direction: column;
     gap: 10px;
+  }
+  .header-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
   }
   h1 {
     font-size: 34px;
@@ -292,11 +463,11 @@ footer {
   text-decoration: none;
   border-radius: 8px;
   padding: 10px 14px;
-  background: #eaf0eb;
-  color: #183133;
+  background: var(--subtle);
+  color: var(--ink);
   font-size: 13px;
 }
 .tabs a.active {
-  background: #215c46;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
 }

@@ -1,11 +1,16 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 import './style.css';
+import { themeScript } from './theme.tsx';
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // The theme attribute is set by the inline script before hydration.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: static inline script */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Meta />
         <Links />
       </head>

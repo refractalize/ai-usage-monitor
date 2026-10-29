@@ -122,6 +122,60 @@ test('moving reset timestamp is not mistaken for spending the whole allowance ag
     0,
   );
 });
+test('reset timestamps jittering by about a second are one period with counted use', () => {
+  // Shape of real Claude readings: the same reset with fractional-second noise.
+  const series = summarize(
+    [sample(10, 100, 9999.505), sample(12, 400, 10000.39), sample(15, 700, 10001.012)],
+    'UTC',
+  )[0];
+  assert.equal(series.periods.length, 1);
+  assert.equal(series.periods[0].max_used, 15);
+  assert.equal(series.days[0].points, 5);
+  // A genuine move of minutes is still a separate reset, not consumption.
+  assert.equal(
+    summarize([sample(30, 100, 10000), sample(31, 400, 10300)], 'UTC')[0].periods.length,
+    2,
+  );
+});
+test('an early reset that keeps the reset time counts the usage that follows it', () => {
+  // Claude's weekly limit dropped 22% -> 0% mid-week with an unchanged reset time.
+  const series = summarize(
+    [sample(20, 100), sample(22, 400), sample(0, 700), sample(3, 1000), sample(5, 1300)],
+    'UTC',
+  )[0];
+  assert.equal(series.days[0].points, 7); // 2 before the reset + 5 after it
+  assert.equal(series.periods.length, 1);
+});
+test('plan changes split totals and periods and never compare percentages across plans', () => {
+  const on = (plan: string, used: number, at: number) => ({ ...sample(used, at), plan_type: plan });
+  const series = summarize(
+    [on('pro', 20, 100), on('pro', 22, 400), on('max', 5, 700), on('max', 8, 1000)],
+    'UTC',
+  )[0];
+  assert.deepEqual(series.plans, ['pro', 'max']);
+  // The switch to 5% of a larger allowance is a baseline, not a drop or new use.
+  assert.deepEqual(
+    series.days.map((d) => [d.plan, d.points]),
+    [
+      ['pro', 2],
+      ['max', 3],
+    ],
+  );
+  assert.deepEqual(
+    series.weeks.map((w) => [w.plan, w.points]),
+    [
+      ['pro', 2],
+      ['max', 3],
+    ],
+  );
+  assert.deepEqual(
+    series.periods.map((p) => [p.plan, p.max_used]),
+    [
+      ['pro', 22],
+      ['max', 8],
+    ],
+  );
+});
 test('local days, Monday weeks, reset periods remain distinct and limits never merge', () => {
   const t = Date.parse('2026-10-04T21:59:00Z') / 1000;
   const series = summarize(

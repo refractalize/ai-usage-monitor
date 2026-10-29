@@ -17,7 +17,8 @@ import {
 } from '../../server/providers.ts';
 import { getCollection, getStore } from '../../server/service.ts';
 import { displayTimeZone, validTimeZone } from '../../server/timezone.ts';
-import { type HistoryView, historyChart } from '../chart.ts';
+import { type HistoryView, historyChart, planLabel } from '../chart.ts';
+import { ThemeToggle } from '../theme.tsx';
 export function meta() {
   return [{ title: 'AI Usage Monitor' }];
 }
@@ -90,7 +91,8 @@ export default function Dashboard() {
     data.series.find((s) => s.duration === 10080) ??
     data.series[0];
   const chart = historyChart(series, view, data.now, (reset) => stamp(reset, data.timeZone));
-  const max = Math.max(1, ...chart.map((d) => d.value));
+  const max = Math.max(1, ...chart.groups.flatMap((g) => g.bars.map((b) => b.value)));
+  const plans = chart.legend.length > 0;
   const stale = !data.latest || data.now - data.latest.collected_at > 900;
   // SSR and the first client render match. Avoid flashing server-zone dates while
   // the browser supplies its zone and the loader recalculates daily boundaries.
@@ -111,9 +113,12 @@ export default function Dashboard() {
           <h1>{providerName(data.provider)} usage</h1>
           <p>Your allowance, over time.</p>
         </div>
-        <span className={`badge ${stale ? 'warning' : ''}`}>
-          {stale ? 'Awaiting fresh data' : providerInfo(data.provider).freshnessLabel}
-        </span>
+        <div className="header-actions">
+          <span className={`badge ${stale ? 'warning' : ''}`}>
+            {stale ? 'Awaiting fresh data' : providerInfo(data.provider).freshnessLabel}
+          </span>
+          <ThemeToggle />
+        </div>
       </header>
       <nav className="tabs" aria-label="Usage provider">
         {PROVIDERS.map((provider) => (
@@ -226,20 +231,36 @@ export default function Dashboard() {
               ? 'Maximum observed percentage used in each quota period.'
               : `Observed percentage points consumed, grouped by ${view === 'days' ? 'day' : 'week starting Monday'}.`}
           </p>
+          {plans && (
+            <ul className="legend" aria-label="Plans">
+              {chart.legend.map((p) => (
+                <li key={p.label}>
+                  <span className={`swatch plan-${p.colour}`} />
+                  {p.label}
+                </li>
+              ))}
+            </ul>
+          )}
           <div
             className="chart"
             role="img"
-            aria-label={`${series.label}: ${view === 'periods' ? 'reset-period maxima' : 'percentage points consumed'}. Exact values in the table below.`}
+            aria-label={`${series.label}: ${view === 'periods' ? 'reset-period maxima' : 'percentage points consumed'}${plans ? `, by plan (${chart.legend.map((p) => p.label).join(', ')})` : ''}. Exact values in the table below.`}
           >
-            {chart.map((d, i) => (
-              <div className="bar-column" key={d.id}>
-                <span className="bar-value">{Number(d.value.toFixed(1))}</span>
-                <div
-                  className="bar"
-                  style={{ height: `${Math.max(2, (d.value / max) * 140)}px` }}
-                  title={`${d.label}: ${view === 'periods' ? percent(d.value) : points(d.value)}`}
-                />
-                <small>{view === 'periods' ? i + 1 : d.label.slice(5)}</small>
+            {chart.groups.map((g, i) => (
+              <div className="bar-column" key={g.id}>
+                <div className="bar-group">
+                  {g.bars.map((b) => (
+                    <div className="bar-stack" key={b.id}>
+                      <span className="bar-value">{Number(b.value.toFixed(1))}</span>
+                      <div
+                        className={`bar plan-${b.colour}`}
+                        style={{ height: `${Math.max(2, (b.value / max) * 140)}px` }}
+                        title={`${g.label}${plans ? ` · ${planLabel(b.plan)}` : ''}: ${view === 'periods' ? percent(b.value) : points(b.value)}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <small>{view === 'periods' ? i + 1 : g.label.slice(5)}</small>
               </div>
             ))}
           </div>
@@ -250,28 +271,33 @@ export default function Dashboard() {
                   <th>
                     {view === 'periods' ? 'Reset time' : view === 'days' ? 'Day' : 'Week starting'}
                   </th>
+                  {plans && <th>Plan</th>}
                   <th>{view === 'periods' ? 'Max used' : 'Observed spend'}</th>
                   <th>Observations</th>
                 </tr>
               </thead>
               <tbody>
-                {[...chart].reverse().map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.label}</td>
-                    <td>
-                      {view === 'periods' ? percent(d.value) : points(d.value)}
-                      {d.uncertain ? ' *' : ''}
-                    </td>
-                    <td>{d.samples}</td>
-                  </tr>
-                ))}
+                {[...chart.groups].reverse().flatMap((g) =>
+                  [...g.bars].reverse().map((b) => (
+                    <tr key={b.id}>
+                      <td>{g.label}</td>
+                      {plans && <td>{planLabel(b.plan)}</td>}
+                      <td>
+                        {view === 'periods' ? percent(b.value) : points(b.value)}
+                        {b.uncertain ? ' *' : ''}
+                      </td>
+                      <td>{b.samples}</td>
+                    </tr>
+                  )),
+                )}
               </tbody>
             </table>
           </div>
           <p className="footnote">
             Daily and weekly spend are estimates, not billing totals. Increases are assigned to the
             later observation’s day. * marks a baseline, gap, day boundary, correction, or reset.
-            Unobserved usage before a reset may be missed. Allowances are never added together.
+            Unobserved usage before a reset may be missed. Allowances are never added together, and
+            neither are plans: a percentage of one plan is not comparable with another's.
           </p>
         </section>
       )}
