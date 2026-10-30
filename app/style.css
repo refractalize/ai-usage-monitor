@@ -8,7 +8,6 @@
   --ink-2: #51686b;
   --ink-3: #62777a;
   --line: #dde8e9;
-  --line-soft: #eaf1f1;
   --control-border: #c8d9db;
   --subtle: #e9f1f2;
   --hover: #e3eeef;
@@ -37,7 +36,6 @@
     --ink-2: #a9b1b9;
     --ink-3: #8f98a1;
     --line: #2c3137;
-    --line-soft: #24282d;
     --control-border: #3a4048;
     --subtle: #23272c;
     --hover: #2a2f35;
@@ -64,7 +62,6 @@
   --ink-2: #a9b1b9;
   --ink-3: #8f98a1;
   --line: #2c3137;
-  --line-soft: #24282d;
   --control-border: #3a4048;
   --subtle: #23272c;
   --hover: #2a2f35;
@@ -183,7 +180,8 @@ select:focus-visible {
 button:disabled {
   opacity: 0.5;
 }
-.theme-toggle {
+.theme-toggle,
+.segmented {
   display: flex;
   gap: 2px;
   margin: 0;
@@ -192,7 +190,8 @@ button:disabled {
   border-radius: 10px;
   background: var(--surface);
 }
-.theme-toggle button {
+.theme-toggle button,
+.segmented button {
   border: 0;
   border-radius: 7px;
   padding: 5px 10px;
@@ -200,7 +199,8 @@ button:disabled {
   background: transparent;
   color: var(--ink-2);
 }
-.theme-toggle button[aria-pressed="true"] {
+.theme-toggle button[aria-pressed="true"],
+.segmented button[aria-pressed="true"] {
   background: var(--subtle);
   color: var(--ink);
   font-weight: 600;
@@ -293,41 +293,80 @@ dd {
   background: var(--accent);
   color: var(--on-accent);
 }
-.chart {
+.chart-controls {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 205px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+}
+.chart-controls .tabs {
+  margin: 0;
+}
+.chart-controls .segmented {
+  margin-left: auto;
+}
+.chart {
   margin: 24px 0 30px;
-  border-bottom: 1px solid var(--line);
-  padding: 0 8px 10px;
+  padding: 0 8px;
   overflow-x: auto;
 }
-.bar-column {
+/* Bars and the limit line share one 0-100% scale. The top padding leaves room for
+   the value labels above full-height bars. */
+.chart-plot {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  height: 180px;
+  padding-top: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.chart-lines {
+  position: absolute;
+  inset: 20px 0 0;
+  pointer-events: none;
+}
+/* The 100% limit frames the top of the plot like the baseline frames its bottom. */
+.chart-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--line);
+}
+.chart-axis {
+  display: flex;
+  gap: 8px;
+  padding-top: 7px;
+}
+.chart-axis small {
   flex: 1;
   min-width: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
+  text-align: center;
+  white-space: nowrap;
 }
 .bar-group {
+  flex: 1;
+  min-width: 20px;
+  height: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: 2px;
-  width: 100%;
 }
 .bar-stack {
   flex: 1;
   min-width: 0;
   max-width: 45px;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
 }
 .bar {
+  flex-shrink: 0;
   width: 100%;
   background: var(--plan);
   border-radius: 5px 5px 0 0;
@@ -372,47 +411,9 @@ dd {
   border-radius: 3px;
 }
 .bar-value,
-.bar-column small {
+.chart-axis small {
   font-size: 10px;
   color: var(--ink-2);
-}
-.table-wrap {
-  max-height: 350px;
-  overflow: auto;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  text-align: left;
-}
-th {
-  background: var(--subtle);
-  color: var(--ink-3);
-  font-size: 11px;
-  position: sticky;
-  top: 0;
-}
-td,
-th {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line-soft);
-}
-td:not(:first-child),
-th:not(:first-child) {
-  text-align: right;
-}
-.footnote,
-footer {
-  font-size: 12px;
-  color: var(--ink-3);
-  line-height: 1.7;
-}
-.footnote {
-  margin-top: 24px;
-}
-footer {
-  margin-top: 25px;
 }
 .notice {
   background: var(--notice-bg);

@@ -43,10 +43,8 @@ mise run start
 The commands accept `--db PATH`. Alternatively set `AI_USAGE_DB`; the default
 is `~/.local/share/ai-usage-monitor/usage-v2.sqlite3`. Set `CODEX_BIN` for an executable
 outside PATH. `HOST` defaults to 127.0.0.1 and `PORT` to 3000.
-The dashboard detects the browser’s timezone and uses it for timestamps and
-daily/weekly chart boundaries, including daylight-saving changes. Times remain
-UTC in SQLite. `AI_USAGE_TIMEZONE` is a server-rendering fallback (default UTC);
-the browser’s timezone takes precedence.
+The dashboard shows times in the browser’s timezone, including daylight-saving
+changes. Times remain UTC in SQLite.
 
 ## Formatting and linting
 
@@ -135,7 +133,8 @@ mise run dev
 to collect only one. Each enabled provider has an independent five-minute
 scheduler (Claude backs off when rate-limited), timeout, and failure record. A failed Claude read doesn't stop Codex.
 The dashboard has a provider selector; disabled providers' stored history remains
-viewable. `Refresh view` reads SQLite and never triggers a CLI collection.
+viewable. The page re-reads SQLite every minute while visible and never triggers a CLI
+collection.
 
 All CLI commands accept `--provider codex|claude|all`. With no flag, they operate
 on the providers enabled in `USAGE_PROVIDERS`. A multi-provider collection returns
@@ -202,8 +201,9 @@ If an old timer is installed, stop it with `systemctl --user disable --now codex
 
 ### Existing installations
 
-Shared configuration now uses `AI_USAGE_DB`, `AI_USAGE_TIMEZONE`, and
-`AI_USAGE_SCHEDULE`. Update old `CODEX_USAGE_*` settings for those three options.
+Shared configuration now uses `AI_USAGE_DB` and `AI_USAGE_SCHEDULE`. Update old
+`CODEX_USAGE_*` settings for those options. `AI_USAGE_TIMEZONE` is no longer used;
+the browser supplies the timezone.
 Account settings are now `CODEX_USAGE_ACCOUNT_NAME` and `CLAUDE_USAGE_ACCOUNT_NAME`.
 Rename existing account settings while retaining their values to keep the same history.
 Authentication paths have not changed.
@@ -293,7 +293,6 @@ services:
       USAGE_PROVIDERS: codex,claude
       CODEX_USAGE_ACCOUNT_NAME: default
       CLAUDE_USAGE_ACCOUNT_NAME: default
-      AI_USAGE_TIMEZONE: UTC
     volumes:
       - usage-data:/data
       - codex-auth:/codex-home

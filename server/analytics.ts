@@ -11,6 +11,9 @@ export interface Total {
 }
 export interface Period {
   resets_at: number;
+  /** When a later period replaced this one before its reset (an early reset or a plan
+      change), else null. */
+  ended_at: number | null;
   plan: string | null;
   max_used: number;
   samples: number;
@@ -84,6 +87,7 @@ export function summarize(samples: Sample[], timeZone: string): Series[] {
     };
     let previous: Sample | undefined;
     let previousReset: number | undefined;
+    let open: Period | undefined;
     for (const row of rows) {
       const plan = row.plan_type;
       if (!plans.includes(plan)) plans.push(plan);
@@ -100,15 +104,21 @@ export function summarize(samples: Sample[], timeZone: string): Series[] {
       }
       const reset = canonicalReset(row.resets_at);
       const periodKey = JSON.stringify([reset, plan]);
-      const period = periods.get(periodKey) ?? {
-        resets_at: reset,
-        plan,
-        max_used: used,
-        samples: 0,
-      };
+      let period = periods.get(periodKey);
+      if (!period && open?.plan === plan && open.max_used === 0) {
+        // Codex slides an unused allowance's reset forward on every reading until it is
+        // used, so a period with no use yet follows its reset instead of splitting.
+        periods.delete(JSON.stringify([open.resets_at, plan]));
+        open.resets_at = reset;
+        period = open;
+      }
+      period ??= { resets_at: reset, ended_at: null, plan, max_used: used, samples: 0 };
+      if (open && period !== open && open.ended_at === null && row.collected_at < open.resets_at)
+        open.ended_at = row.collected_at;
       period.max_used = Math.max(period.max_used, used);
       period.samples++;
       periods.set(periodKey, period);
+      open = period;
       let high = highWater.get(periodKey);
       // First-ever observation is a baseline, not consumption during that day.
       if (previous && previous.used_percent !== null && previousReset !== undefined) {

@@ -176,6 +176,28 @@ test('plan changes split totals and periods and never compare percentages across
     ],
   );
 });
+test('an unused period follows its sliding reset, and an early reset ends the period', () => {
+  // Codex reports "resets in 7 days" on every idle reading, fixing it at first use, and
+  // can reset an allowance well before its reported reset time.
+  const week = 604800;
+  const series = summarize(
+    [
+      sample(0, 100, 100 + week),
+      sample(0, 400, 400 + week),
+      sample(3, 700, 650 + week),
+      sample(19, 1000, 650 + week),
+      sample(0, 1300, 1300 + week),
+    ],
+    'UTC',
+  )[0];
+  assert.deepEqual(
+    series.periods.map((p) => [p.resets_at, p.ended_at, p.max_used, p.samples]),
+    [
+      [650 + week, 1300, 19, 4],
+      [1300 + week, null, 0, 1],
+    ],
+  );
+});
 test('local days, Monday weeks, reset periods remain distinct and limits never merge', () => {
   const t = Date.parse('2026-10-04T21:59:00Z') / 1000;
   const series = summarize(
