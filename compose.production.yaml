@@ -12,7 +12,6 @@ services:
       USAGE_PROVIDERS: ${USAGE_PROVIDERS:-codex,claude}
       CODEX_USAGE_ACCOUNT_NAME: ${CODEX_USAGE_ACCOUNT_NAME:-default}
       CLAUDE_USAGE_ACCOUNT_NAME: ${CLAUDE_USAGE_ACCOUNT_NAME:-default}
-      AI_USAGE_TIMEZONE: ${AI_USAGE_TIMEZONE:-UTC}
     volumes:
       - usage-data:/data
       - codex-auth:/codex-home
