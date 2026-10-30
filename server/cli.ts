@@ -69,9 +69,7 @@ try {
       }
       if (command === 'history') {
         console.log(`${providerName(provider)} (account name: ${scope.account})`);
-        for (const series of summarize(store.samples(scope), 'UTC').filter(
-          (s) => s.duration === 10080,
-        )) {
+        for (const series of summarize(store.samples(scope)).filter((s) => s.duration === 10080)) {
           console.log(series.label);
           for (const p of series.periods.slice(-weeks))
             console.log(

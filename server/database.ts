@@ -134,10 +134,11 @@ export class Store {
       .iterate(scope.provider, scope.account))
       yield this.observation(row);
   }
-  samples(scope: Scope = DEFAULT_SCOPE): Sample[] {
+  /** Window readings in collection order, optionally only those collected since `since`. */
+  samples(scope: Scope = DEFAULT_SCOPE, since = Number.NEGATIVE_INFINITY): Sample[] {
     return this.db
       .prepare(`SELECT w.*,s.collected_at,s.provider,s.account FROM windows w JOIN snapshots s ON s.id=w.snapshot_id
-      WHERE s.provider=? AND s.account=? ORDER BY s.collected_at,s.id,w.rowid`)
-      .all(scope.provider, scope.account) as unknown as Sample[];
+      WHERE s.provider=? AND s.account=? AND s.collected_at>=? ORDER BY s.collected_at,s.id,w.rowid`)
+      .all(scope.provider, scope.account, since) as unknown as Sample[];
   }
 }

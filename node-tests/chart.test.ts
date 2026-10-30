@@ -16,8 +16,6 @@ const fixture = (periods: Period[], extra: Partial<Series> = {}): Series => ({
   limit_id: 'example',
   duration: 10080,
   plans: ['pro'],
-  days: [],
-  weeks: [],
   periods,
   ...extra,
 });

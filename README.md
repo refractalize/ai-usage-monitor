@@ -221,19 +221,15 @@ Do not use `down -v` when moving an installation.
 
 - Current usage shows all returned windows, identified by duration, not by
   `primary` or `secondary`. A weekly window is 10,080 minutes.
-- Reset history shows `MAX(used_percent)` for each limit, duration, and reset time.
-- Daily spend sums newly observed increases above each reset period's previous
-  high-water mark. The first sample is a baseline, not spend during that day.
-  A correction downward and recovery to the old maximum is not counted twice.
-- After a detected reset, the first new percentage is included as observed new
-  period usage. Usage immediately before the reset may have been missed. A
-  changing reset timestamp before expiry is treated as uncertain, not a new spend.
-- Weekly spend aggregates daily spend into Monday-start weeks. A day/week spanning
-  several resets may exceed 100 percentage points. Different allowances are never
-  added together.
-- Increases are assigned to the later observation's day in the configured timezone.
-  Baselines, missing fields, gaps over ten minutes, day boundaries, corrections,
-  and resets are flagged. Missing days are absent, not fabricated as zero.
+- Reset history charts the highest observed `used_percent` in each reset period of
+  an allowance, on a 0-100% scale, over the last week, 30, 60 or 90 days. Readings
+  are taken every five minutes, so a brief peak between readings can be missed.
+- A period starts its allowance's length before its reset time. A period the
+  provider resets early, or a plan change replaces, ends when the next one begins.
+  Codex moves an unused allowance's reset forward on every reading, so a period
+  with no use yet follows its reset rather than becoming many empty periods.
+- Allowances and plans are never combined: a percentage of one plan is not
+  comparable with another's, so each plan's periods are separate bars.
 
 Raw JSON is preserved for future analysis. Errors are sanitized and logged to
 stderr; failed reads create an attempt record but never a bogus usage snapshot.

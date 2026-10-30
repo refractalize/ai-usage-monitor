@@ -32,15 +32,17 @@ export function loader({ request }: LoaderFunctionArgs) {
     throw new Response('Unknown provider', { status: 400 });
   const provider = parameter ? parseProvider(parameter) : enabled[0];
   const scope = scopeFor(provider);
+  const now = Date.now() / 1000;
   const latest = store.latest(scope);
   return {
     provider,
     enabled,
     latest: latest && { collected_at: latest.collected_at, windows: latest.windows },
     attempt: store.lastAttempt(scope) ?? null,
-    // Reset periods are absolute times; the browser formats them in its own timezone.
-    series: summarize(store.samples(scope), 'UTC'),
-    now: Date.now() / 1000,
+    // Only the readings the longest range can show, so page loads don't grow with
+    // history. The extra week covers weekly periods that began before the range.
+    series: summarize(store.samples(scope, now - (Math.max(...RANGES) + 7) * 86400)),
+    now,
     scheduled: scheduled && enabled.includes(provider),
   };
 }
