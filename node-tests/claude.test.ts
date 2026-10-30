@@ -86,7 +86,7 @@ test('Claude model allowances stay separate; raw limits and extra dollar usage a
       100,
       scope,
     );
-    const series = summarize(store.samples(scope), 'UTC');
+    const series = summarize(store.samples(scope));
     assert.equal(series.length, 2);
     assert.deepEqual(
       series.map((s) => s.periods[0].max_used),
@@ -151,10 +151,11 @@ test('provider and account scope isolates latest, deduplication, attempts, expor
     assert.equal(store.latest(other)!.account, 'work');
     assert.equal([...store.observations(scope)].length, 1);
     assert.deepEqual(store.latest(scope)!.raw_response, raw);
-    const merged = summarize(
-      [...store.samples(scope), ...store.samples(other), ...store.samples(codex)],
-      'UTC',
-    );
+    const merged = summarize([
+      ...store.samples(scope),
+      ...store.samples(other),
+      ...store.samples(codex),
+    ]);
     assert.equal(merged.length, 5);
     const count = [...store.observations(scope)].length;
     assert.throws(() => store.saveRaw(response({}), 300, scope));

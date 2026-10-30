@@ -86,8 +86,10 @@ test('atomic persistence, exact recent dedup, raw JSON and reset maxima', () => 
     );
     assert.equal([...store.observations()].length, before);
     assert.deepEqual([...store.observations()][0].raw_response, raw);
+    assert.ok(store.samples().length > 0);
+    assert.deepEqual(store.samples(undefined, Number.POSITIVE_INFINITY), []);
     assert.deepEqual(
-      summarize(store.samples(), 'UTC')
+      summarize(store.samples())
         .find((s) => s.duration === 10080)!
         .periods.map((p) => [p.resets_at, p.max_used]),
       [
@@ -99,75 +101,62 @@ test('atomic persistence, exact recent dedup, raw JSON and reset maxima', () => 
     store.close();
   }
 });
-test('consumption: baseline, corrections, rename, reset, missing observations', () => {
-  const series = summarize(
+test('period maxima across corrections, a renamed window, a reset, and missing readings', () => {
+  const series = summarize([
+    sample(12, 100),
+    sample(19, 400, 10000, 'renamed'),
+    sample(17, 700),
+    sample(19, 1000),
+    sample(3, 10100, 20000),
+    sample(5, 10400, 20000),
+  ])[0];
+  assert.deepEqual(
+    series.periods.map((p) => [p.resets_at, p.max_used, p.samples]),
     [
-      sample(12, 100),
-      sample(19, 400, 10000, 'renamed'),
-      sample(17, 700),
-      sample(19, 1000),
-      sample(3, 10100, 20000),
-      sample(5, 10400, 20000),
+      [10000, 19, 4],
+      [20000, 5, 2],
     ],
-    'UTC',
-  )[0];
-  assert.equal(series.days[0].points, 12); // 7 + 3 after reset + 2; recovery to 19 is not new use
-  assert.equal(series.days[0].uncertain, true);
-  assert.equal(series.periods[0].max_used, 19);
-  assert.equal(summarize([sample(null, 100), sample(9, 400)], 'UTC')[0].days[0].points, 0);
-});
-test('moving reset timestamp is not mistaken for spending the whole allowance again', () => {
-  assert.equal(
-    summarize([sample(30, 100, 10000), sample(31, 400, 10300)], 'UTC')[0].days[0].points,
-    0,
+  );
+  assert.deepEqual(
+    summarize([sample(null, 100), sample(9, 400)])[0].periods.map((p) => p.max_used),
+    [9],
   );
 });
 test('reset timestamps jittering by about a second are one period with counted use', () => {
   // Shape of real Claude readings: the same reset with fractional-second noise.
-  const series = summarize(
-    [sample(10, 100, 9999.505), sample(12, 400, 10000.39), sample(15, 700, 10001.012)],
-    'UTC',
-  )[0];
+  const series = summarize([
+    sample(10, 100, 9999.505),
+    sample(12, 400, 10000.39),
+    sample(15, 700, 10001.012),
+  ])[0];
   assert.equal(series.periods.length, 1);
   assert.equal(series.periods[0].max_used, 15);
-  assert.equal(series.days[0].points, 5);
   // A genuine move of minutes is still a separate reset, not consumption.
-  assert.equal(
-    summarize([sample(30, 100, 10000), sample(31, 400, 10300)], 'UTC')[0].periods.length,
-    2,
-  );
+  assert.equal(summarize([sample(30, 100, 10000), sample(31, 400, 10300)])[0].periods.length, 2);
 });
-test('an early reset that keeps the reset time counts the usage that follows it', () => {
+test('an early reset that keeps the reset time stays one period', () => {
   // Claude's weekly limit dropped 22% -> 0% mid-week with an unchanged reset time.
-  const series = summarize(
-    [sample(20, 100), sample(22, 400), sample(0, 700), sample(3, 1000), sample(5, 1300)],
-    'UTC',
-  )[0];
-  assert.equal(series.days[0].points, 7); // 2 before the reset + 5 after it
-  assert.equal(series.periods.length, 1);
+  const series = summarize([
+    sample(20, 100),
+    sample(22, 400),
+    sample(0, 700),
+    sample(3, 1000),
+    sample(5, 1300),
+  ])[0];
+  assert.deepEqual(
+    series.periods.map((p) => p.max_used),
+    [22],
+  );
 });
-test('plan changes split totals and periods and never compare percentages across plans', () => {
+test('plan changes split periods and never compare percentages across plans', () => {
   const on = (plan: string, used: number, at: number) => ({ ...sample(used, at), plan_type: plan });
-  const series = summarize(
-    [on('pro', 20, 100), on('pro', 22, 400), on('max', 5, 700), on('max', 8, 1000)],
-    'UTC',
-  )[0];
+  const series = summarize([
+    on('pro', 20, 100),
+    on('pro', 22, 400),
+    on('max', 5, 700),
+    on('max', 8, 1000),
+  ])[0];
   assert.deepEqual(series.plans, ['pro', 'max']);
-  // The switch to 5% of a larger allowance is a baseline, not a drop or new use.
-  assert.deepEqual(
-    series.days.map((d) => [d.plan, d.points]),
-    [
-      ['pro', 2],
-      ['max', 3],
-    ],
-  );
-  assert.deepEqual(
-    series.weeks.map((w) => [w.plan, w.points]),
-    [
-      ['pro', 2],
-      ['max', 3],
-    ],
-  );
   assert.deepEqual(
     series.periods.map((p) => [p.plan, p.max_used]),
     [
@@ -180,16 +169,13 @@ test('an unused period follows its sliding reset, and an early reset ends the pe
   // Codex reports "resets in 7 days" on every idle reading, fixing it at first use, and
   // can reset an allowance well before its reported reset time.
   const week = 604800;
-  const series = summarize(
-    [
-      sample(0, 100, 100 + week),
-      sample(0, 400, 400 + week),
-      sample(3, 700, 650 + week),
-      sample(19, 1000, 650 + week),
-      sample(0, 1300, 1300 + week),
-    ],
-    'UTC',
-  )[0];
+  const series = summarize([
+    sample(0, 100, 100 + week),
+    sample(0, 400, 400 + week),
+    sample(3, 700, 650 + week),
+    sample(19, 1000, 650 + week),
+    sample(0, 1300, 1300 + week),
+  ])[0];
   assert.deepEqual(
     series.periods.map((p) => [p.resets_at, p.ended_at, p.max_used, p.samples]),
     [
@@ -198,27 +184,18 @@ test('an unused period follows its sliding reset, and an early reset ends the pe
     ],
   );
 });
-test('local days, Monday weeks, reset periods remain distinct and limits never merge', () => {
-  const t = Date.parse('2026-10-04T21:59:00Z') / 1000;
-  const series = summarize(
-    [
-      sample(10, t, t + 10000),
-      sample(15, t + 120, t + 10000),
-      { ...sample(80, t + 120), limit_id: 'other' },
-    ],
-    'Europe/Paris',
-  );
-  assert.equal(series.length, 2);
+test('distinct limits never merge', () => {
+  const series = summarize([
+    sample(10, 100),
+    sample(15, 400),
+    { ...sample(80, 400), limit_id: 'other' },
+  ]);
   assert.deepEqual(
-    series[0].days.map((d) => [d.date, d.points]),
+    series.map((s) => [s.limit_id, s.periods.map((p) => p.max_used)]),
     [
-      ['2026-10-04', 0],
-      ['2026-10-05', 5],
+      ['codex', [15]],
+      ['other', [80]],
     ],
-  );
-  assert.deepEqual(
-    series[0].weeks.map((d) => d.date),
-    ['2026-09-28', '2026-10-05'],
   );
 });
 test('notification and unrelated response before matching ID; handshake only reads limits', async () => {
