@@ -50,7 +50,7 @@ export async function initializeAndReadClaude(transport: RpcTransport) {
   });
   return waitForControlResponse(transport, 'usage');
 }
-// Verified against Claude Code 2.1.310. This is an experimental control API.
+// Verified against Claude Code 2.1.310. Uses an undocumented control API.
 // No user message, prompt, model turn, transcript scan, or direct HTTP request.
 export async function readClaudeUsage(
   options: { claude?: string; timeoutMs?: number; signal?: AbortSignal } = {},

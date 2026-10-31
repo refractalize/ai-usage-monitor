@@ -3,7 +3,7 @@
 A self-hosted React Router + Vite dashboard and five-minute Codex/Claude quota collector,
 using TypeScript, Node, and SQLite. It reads `account/rateLimits/read` through a
 short-lived Codex app-server. It never creates a thread, starts a model turn, or
-requests token/cost activity from Codex. Claude uses its experimental structured
+requests token/cost activity from Codex. Claude uses an undocumented structured
 usage control request, without a prompt or model turn; only quota percentages
 are normalized and displayed.
 
@@ -116,7 +116,7 @@ docker compose exec monitor node --import tsx server/cli.ts collect
 docker compose exec monitor node --import tsx server/cli.ts history --weeks 12
 ```
 
-## Enable Claude (experimental)
+## Enable Claude
 
 Install Claude Code locally and use its normal subscription login. No token copying
 or custom credential refresh is implemented:
@@ -164,7 +164,7 @@ starts no model turn, and disables hooks, tools, MCP servers, and session persis
 It runs in a temporary empty working directory and only uses the CLI for auth and
 network access. Tests assert this request allowlist and process cleanup.
 
-Anthropic explicitly marks this control API as experimental; upgrades need a
+The collector uses an undocumented control API; upgrades need a
 compatibility check. The collector passes `--debug-file` into its private temporary
 directory and only accepts a reading when that log shows the CLI fetched
 `/api/oauth/usage` successfully in the same run, so replayed or cached readings are
